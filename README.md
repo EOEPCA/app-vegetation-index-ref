@@ -4,7 +4,7 @@
 
 ### About this application
 
-This is a simple application used as an artifact for testing EOEPCA release 0.2
+This is a simple application used as an artifact for testing EOEPCA release 0.3
 
 It validates the fan-out without paradigm where Sentinel-2 acquisitions passed as references to STAC remote items are processed to produce the NBR, NDVI and NDWI vegetation indexes.  
 
