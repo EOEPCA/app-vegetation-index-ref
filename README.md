@@ -10,24 +10,20 @@ It validates the fan-out without paradigm where Sentinel-2 acquisitions passed a
 
 ### Build the docker
 
-The repo contains a Dockerfile and a Jenkinsfile.  
+The repo contains a Dockerfile and a .travis.yml files which builds and pushes to the EOEPCA organization on Dockerhub.  
 
-The build is done by Terradue's Jenkins instance with the configured job https://build.terradue.com/job/containers/job/eoepca-vegetation-index/
-
-### Create the application package
-
-Run the command below to print the CWL: 
+It can be built manually with:
 
 ```bash
-docker run --rm -it terradue/eoepca-vegetation-index:0.1 vegetation-index-ref-cwl --docker 'terradue/eoepca-vegetation-index-ref:0.1'
+docker build . -t vegetation-index-ref:0.1
 ```
 
-Save the CWL output to a file called `eoepca-vegetation-index.cwl`
+### Create the application package
 
 Package it as an application package wrapped in an Atom file with:
 
 ```bash
-cwl2atom eoepca-vegetation-index-ref.cwl > eoepca-vegetation-index.atom 
+cwl2atom vegetation-index-ref.cwl > eoepca-vegetation-index-ref.atom 
 ```
 
 Post the Atom on the EOEPCA resource manager
