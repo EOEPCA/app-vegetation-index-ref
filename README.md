@@ -1,94 +1,44 @@
-## terradue-s3-olci-preproc
+## EOEPCA - Vegetation index using data by reference
 
-### Local build 
+[![Build Status](https://travis-ci.com/EOEPCA/app-vegetation-index-ref.svg?branch=master)](https://travis-ci.com/EOEPCA/app-vegetation-index-ref)
 
-To build this application, the requirements are:
+### About this application
 
-* conda=4.6.14
-* conda build 3.18
+This is a simple application used as an artifact for testing EOEPCA release 0.2
 
-The best solution for the compliance with these requirements is to create a dedicated environment and avoid adding module requirements for the application environment.
+It validates the fan-out without paradigm where Sentinel-2 acquisitions passed as references to STAC remote items are processed to produce the NBR, NDVI and NDWI vegetation indexes.  
 
-```bash
-conda create -y -q -n build_env 
-```
+### Build the docker
 
-```bash
-conda install -n build_env conda=4.6.14 conda-build cwl_runner -y -q
-```
+The repo contains a Dockerfile and a Jenkinsfile.  
 
-Now, in the root application folder (it contains the conda.recipe folder), build the application with:
+The build is done by Terradue's Jenkins instance with the configured job https://build.terradue.com/job/containers/job/eoepca-vegetation-index/
 
-```bash
-<path to build_env>/bin/conda build .
-```
+### Create the application package
 
-Note: to find the path to <path to build_env> 
+Run the command below to print the CWL: 
 
 ```bash
-conda env list
+docker run --rm -it terradue/eoepca-vegetation-index:0.1 vegetation-index-ref-cwl --docker 'terradue/eoepca-vegetation-index-ref:0.1'
 ```
 
-Checking conda version:
+Save the CWL output to a file called `eoepca-vegetation-index.cwl`
+
+Package it as an application package wrapped in an Atom file with:
 
 ```bash
-$ /workspace/.conda/envs/build_env/bin/conda -V
-conda 4.6.14
+cwl2atom eoepca-vegetation-index-ref.cwl > eoepca-vegetation-index.atom 
 ```
 
-### Deployment dry-run
+Post the Atom on the EOEPCA resource manager
 
-Create a dedicated environment named env_app
+### Application execution
 
-```bash
-conda create -y -q -n env_app 
-```
+Use the parameters:
 
-In the dedicated environment, install the application built previously with:
+* **input_reference**:
 
-```bash
-<path to build_env>/bin/conda install -n build_env -y -n env_app -c file://<path to local build channel> -c terradue -c defaults -c conda-forge <application module> 
-```
+    * https://earth-search.aws.element84.com/v0/collections/sentinel-s2-l2a-cogs/items/S2B_36RTT_20191205_0_L2A
+    * https://earth-search.aws.element84.com/v0/collections/sentinel-s2-l2a-cogs/items/S2B_36RTT_20191215_0_L2A
 
-Example:
-
-```bash
-/workspace/.conda/envs/build_env/bin/conda install -y -n env_app -c file:///workspace/.conda/envs/build_env/conda-bld -c terradue -c defaults -c conda-forge s2_gefolki_multitemporal
-```
-
-Activate the environment:
-
-```bash
-conda activate env_app 
-```
-
-Print the application help:
-
-```bash
-s2-gefolki-multitemporal --help
-```
-
-Test the Ellip application descriptor generation
-
-```bash
-app-gen --stdout 
-```
-
-Test the CWL generation
-
-```bash
-cwl-gen --stdout 
-```
-
-Test the OWS Context generation
-
-```bash
-ows-gen -c dummy -d dummy --stdout 
-```
-
-To remove the env_app environment, do:
-
-```bash
-conda remove -n env_app --all 
-```
-
+* **aoi**: POLYGON((30.358 29.243,30.358 29.545,30.8 29.545,30.8 29.243,30.358 29.243))
