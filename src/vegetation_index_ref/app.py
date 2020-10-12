@@ -4,7 +4,7 @@ import gdal
 import numpy as np
 import logging
 import click
-from pystac import Catalog, Collection, EOItem, MediaType, EOAsset, CatalogType
+from pystac import * 
 from shapely.wkt import loads
 from time import sleep
 import requests
@@ -82,24 +82,15 @@ def entry(e_input_reference, e_aoi):
 def main(input_reference, aoi):
     
     s2_item = S2_stac_item(input_reference['value'])
-    
-    
+       
     catalog = Catalog(id='catalog_id', 
                       description='catalog_description')
+    
     
     catalog.add_item(s2_item.item)
     
     catalog.normalize_and_save(root_href='instac',
                                   catalog_type=CatalogType.SELF_CONTAINED)
-    
-    # back to business
-    
-    bands = [{'name': 'NBR',
-              'common_name': 'nbr'}, 
-             {'name': 'NDVI',
-              'common_name': 'ndvi'},
-             {'name': 'NDWI',
-              'common_name': 'ndwi'}]
     
     if not 'PREFIX' in os.environ.keys():
     
@@ -111,25 +102,30 @@ def main(input_reference, aoi):
         
     cat = Catalog.from_file(os.path.join('instac', 'catalog.json')) 
     
+    cat.describe()
+    
     item = next(cat.get_items())
     
-    for index, band in enumerate(item.bands):
+    eo_item = extensions.eo.EOItemExt(item)      
    
-        if band.common_name in ['swir16']:
+    for key in eo_item.item.assets.keys():
+   
+        if eo_item.item.assets[key].properties['eo:bands'][0]['common_name'] in ['swir16']:
+        
+             asset_swir16 = '/vsicurl/{}'.format(eo_item.item.assets[key].get_absolute_href())
+            
+        if eo_item.item.assets[key].properties['eo:bands'][0]['common_name'] in ['swir22']:
+        
+             asset_swir22 = '/vsicurl/{}'.format(eo_item.item.assets[key].get_absolute_href())
 
-            asset_swir16 = '/vsicurl/{}'.format(item.assets[band.name].get_absolute_href())
-
-        if band.common_name in ['swir22']:
-
-            asset_swir22 = '/vsicurl/{}'.format(item.assets[band.name].get_absolute_href())
-
-        if band.common_name in ['nir']:
-
-            asset_nir = '/vsicurl/{}'.format(item.assets[band.name].get_absolute_href())
-
-        if band.common_name in ['red']:
-
-            asset_red = '/vsicurl/{}'.format(item.assets[band.name].get_absolute_href())
+        if eo_item.item.assets[key].properties['eo:bands'][0]['common_name'] in ['nir']:
+        
+             asset_nir = '/vsicurl/{}'.format(eo_item.item.assets[key].get_absolute_href())
+            
+        if eo_item.item.assets[key].properties['eo:bands'][0]['common_name'] in ['red']:
+        
+             asset_red = '/vsicurl/{}'.format(eo_item.item.assets[key].get_absolute_href())
+        
             
     vrt = '{0}.vrt'.format(item.id)
     
@@ -204,22 +200,54 @@ def main(input_reference, aoi):
 
     del(swir16)
     
-    catalog = Catalog(id='catalog', description='Results')
+    os.remove(tif)
+    
+    # STAC output
+    default_bands = [{'name': 'NBR',
+              'common_name': 'nbr'}, 
+             {'name': 'NDVI',
+              'common_name': 'ndvi'},
+             {'name': 'NDWI',
+              'common_name': 'ndwi'}]
+    
+    catalog = Catalog(id='catalog-{}'.format(item.id),
+                      description='Results')
 
     catalog.clear_items()
     catalog.clear_children()
     
     item_name = 'INDEX_{}'.format(item.id)
     
-    result_item = EOItem(id=item_name,
-                         geometry=item.geometry,
-                         bbox=item.bbox,
-                         datetime=item.datetime,
-                         properties={},
-                         bands=bands,
-                         gsd=10, 
-                         platform=item.platform, 
-                         instrument=item.instrument)
+    
+    item.properties.pop('eo:bands', None)
+    item.properties['eo:gsd'] = 10
+    item.properties['eo:platform'] = ['sentinel-2']
+    item.properties['eo:instrument'] = 'MSI'
+    
+    result_item = Item(id=item_name,
+                       geometry=item.geometry,
+                       bbox=item.bbox,
+                       datetime=item.datetime,
+                       properties=item.properties)
+    
+    result_item.common_metadata.set_gsd(10)
+    
+    eo_item = extensions.eo.EOItemExt(result_item)
+    
+    #eo_item.set_bands(bands)
+    
+    #eo_item.common_metadata.set_gsd(10)
+
+                     #                     result_item = EOItem(id=item_name,
+                     #    geometry=item.geometry,
+                     #    bbox=item.bbox,
+                     ##    datetime=item.datetime,
+                     #    properties={},
+                     #    bands=bands,
+                     #    gsd=10, 
+                     #    platform=item.platform, 
+                     #    instrument=item.instrument)
+    bands = []
     
     for index, veg_index in enumerate(['NBR', 'NDVI', 'NDWI']):
 
@@ -246,23 +274,41 @@ def main(input_reference, aoi):
 
         del(output)
 
-        os.makedirs(os.path.join('stac-results', item_name),
+        os.makedirs(os.path.join('.', item_name),
                     exist_ok=True)
 
-        cog(temp_name, os.path.join('stac-results', item_name, output_name))
+        cog(temp_name, os.path.join('.', item_name, output_name))
 
         result_item.add_asset(key=veg_index.lower(),
-                              asset=EOAsset(href='./{}'.format(output_name), 
-                              media_type=MediaType.GEOTIFF, 
-                              title=bands[index]['name'],
-                              bands=bands[index]))
+                           asset=Asset(href='./{}'.format(output_name), 
+                                       media_type=MediaType.GEOTIFF))
+        
+        asset = result_item.get_assets()[veg_index.lower()]                                   
+         
+        #description = bands[index]['name']
+            
+        stac_band = extensions.eo.Band.create(name=veg_index.lower(), 
+                                                   common_name=default_bands[index]['common_name'],
+                                                   description=default_bands[index]['name'])
+        bands.append(stac_band)
+            
+        eo_item.set_bands([stac_band], asset=asset)
+    
+    eo_item.set_bands(bands)
+          
+    eo_item.apply(bands)    
+    
+        #result_item.add_asset(key=veg_index.lower(),
+        #                      asset=EOAsset(href='./{}'.format(output_name), 
+        #                      media_type=MediaType.GEOTIFF, 
+        #                      title=bands[index]['name'],
+        #                      bands=[bands[index]]))
         
     catalog.add_items([result_item])
     
-    os.remove(tif)
+    catalog.normalize_and_save(root_href='./',
+                               catalog_type=CatalogType.SELF_CONTAINED)
     
-    catalog.normalize_and_save(root_href='stac-results',
-                           catalog_type=CatalogType.SELF_CONTAINED)
     
     
 if __name__ == '__main__':
